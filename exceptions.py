@@ -18,13 +18,5 @@ class ErrorApi(Exception):
     pass
 
 
-class TypeError():
-    pass
-
-
-class ValueErrorTokens():
-    pass
-
-
-class KeyError(Exception):
+class TokenError(Exception):
     pass

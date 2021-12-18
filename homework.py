@@ -1,23 +1,30 @@
-import exceptions
 import logging
 import os
-import requests
 import time
 
 from dotenv import load_dotenv
 from telegram import Bot
+import requests
+
+from exceptions import ErrorApi
+from exceptions import StatusError
 
 
 STATUS = 'Изменился статус проверки работы "{name}". {verdict}'
 TOKENS_ERROR = 'Отсутствующие токены {token}'
-PATH = 'C:/Users/User/OneDrive/Dev/homework_bot/'
+PATH = os.path.abspath(__file__)
 TOKENS = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
 BOT_WORKING = 'Бот работает'
 FAULT_TOKENS = "Ошибка токенов"
 MESSAGE = 'Сбой в работе программы: {faults}'
-ERROR = 'Произошла ошибка {fault}.'
-CODE_ERROR = 'Код ошибки:{key}. Код статуса:{state}'
+ERROR_NETWORK = 'Соединение прервано.'
+CODE_ERROR = ('Код ошибки:{key}. Код статуса:{state}.'
+              '{endpoint}.{headers}.{param}')
 ERROR_API = 'Ошибка при запросе к API Yandex. Код-возврата:{state}'
+EMPTY_LIST = 'Список пуст'
+INCORRECT_DICT = 'Некорректный ответ на запрос словаря'
+INCORRECT_LIST = 'Некорректный ответ на запрос списка'
+ERROR_STATUS = 'Ошибка статуса'
 
 load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
@@ -44,18 +51,27 @@ def get_api_answer(current_timestamp):
             headers=HEADERS,
             params=params
         )
-    except Exception as error:
-        logging.error(ERROR.format(fault=error))
+    except ConnectionError:
+        raise TypeError(f'{ERROR_NETWORK}, {ENDPOINT}, {HEADERS}, {params}')
     response_json = homework_statuses.json()
     status = homework_statuses.status_code
     if status != 200:
-        if ['code'] in response_json:
-            code = response_json['code']
-            logging.error(CODE_ERROR.format(key=code, state=status))
-        if ['error'] in response_json:
-            code = response_json['error']
-            logging.error(CODE_ERROR.format(key=code, state=status))
-        raise exceptions.ErrorApi(ERROR_API.format(state=status))
+        for key in response_json:
+            if key == ['code']:
+                raise StatusError(CODE_ERROR.format(
+                    key=response_json['code'],
+                    state=status,
+                    endpoint=ENDPOINT,
+                    headers=HEADERS,
+                    param=params))
+            if key == ['error']:
+                raise StatusError(CODE_ERROR.format(
+                    key=response_json['error'],
+                    state=status,
+                    endpoint=ENDPOINT,
+                    headers=HEADERS,
+                    param=params))
+        raise ErrorApi(ERROR_API.format(state=status))
 
     return response_json
 
@@ -63,19 +79,19 @@ def get_api_answer(current_timestamp):
 def check_response(response):
     """Проверяется ответ API на корректность."""
     if not response:
-        raise TypeError('Список пуст')
+        raise TypeError(EMPTY_LIST)
     if not isinstance(response, dict):
-        raise TypeError('Некорректный ответ на запрос словаря')
+        raise TypeError(INCORRECT_DICT)
     if not isinstance(response.get('homeworks'), list):
-        raise TypeError('Некорректный ответ на запрос списка')
+        raise TypeError(INCORRECT_LIST)
     return response['homeworks']
 
 
 def parse_status(homework):
     """Извлекается из конкретной домашней работы статус этой работы."""
     status = homework['status']
-    if not isinstance(HOMEWORK_STATUSES, dict):
-        raise KeyError('Некорректный ответ на запрос словаря')
+    if status not in HOMEWORK_STATUSES.keys():
+        raise KeyError(ERROR_STATUS)
     message = STATUS.format(
         name=homework['homework_name'],
         verdict=HOMEWORK_STATUSES[status]
@@ -113,23 +129,17 @@ def main():
         try:
             response = get_api_answer(current_timestamp)
             homeworks = (check_response(response))
-            print(homeworks)
-            print(response['current_date'])
             if len(homeworks) > 0:
-                status = (parse_status(homeworks[0]))
-            if 'current_date' in response:
-                timestamp = response.get('current_date', current_timestamp)
-                send_message(bot, status)
-            current_timestamp = timestamp
-
+                send_message(bot, (parse_status(homeworks[0])))
+            current_timestamp = response.get('current_date', current_timestamp)
         except Exception as error:
             message = MESSAGE.format(faults=error)
-        try:
-            send_message(bot, message)
-            logging.error(message)
-        except Exception as error:
-            logging.error(ERROR.format(fault=error))
-        time.sleep(RETRY_TIME)
+            try:
+                send_message(bot, message)
+                logging.error(message)
+            except Exception as error:
+                logging.error(ERROR_NETWORK.format(fault=error))
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':

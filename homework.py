@@ -43,8 +43,6 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-VERDICTS = ('approved', 'reviewing', 'rejected')
-
 
 def get_api_answer(current_timestamp):
     """Делается запрос к эндпоинту API-сервиса."""
@@ -81,8 +79,8 @@ def check_response(response):
 def parse_status(homework):
     """Извлекается из конкретной домашней работы статус этой работы."""
     status = homework['status']
-    if status not in VERDICTS:
-        raise ValueError(ERROR_STATUS.format(value=status))
+    if status not in HOMEWORK_STATUSES:
+        raise KeyError(ERROR_STATUS.format(value=status))
     message = STATUS.format(
         name=homework['homework_name'],
         verdict=HOMEWORK_STATUSES[status]

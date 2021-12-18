@@ -2,5 +2,6 @@ class ErrorApi(Exception):
     pass
 
 
-class StatusError(Exception):
+class ResponseJsonError(Exception):
     pass
+

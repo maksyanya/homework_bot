@@ -18,15 +18,14 @@ BOT_WORKING = 'Бот работает'
 FAULT_TOKENS = "Ошибка токенов"
 MESSAGE = 'Сбой в работе программы: {faults}'
 ERROR_NETWORK = 'Соединение прервано c {url}.{headers}.{params}'
-RESPONSE_ERROR = ('Код ошибки:{error}. Код статуса:{state}.'
+RESPONSE_ERROR = ('Код ошибки:{error_value}. Код статуса:{error_key}.'
                   '{url}.{headers}.{params}')
 ERROR_API = ('Ошибка при запросе к API Yandex. Код-возврата:{state}'
              '{url}.{headers}.{params}')
 EMPTY_LIST = 'Список пуст'
 INCORRECT_DICT = 'Некорректный ответ на запрос словаря'
 INCORRECT_LIST = 'Некорректный ответ на запрос списка'
-ERROR_STATUS = ('Работа остановлена из-за '
-                'неожиданного принятого значения {value}')
+ERROR_STATUS = ('Неожиданное принятое значение {value}')
 
 load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
@@ -46,11 +45,13 @@ HOMEWORK_STATUSES = {
 
 def get_api_answer(current_timestamp):
     """Делается запрос к эндпоинту API-сервиса."""
-    params = {'from_date': current_timestamp}
-    parameters = dict(url=ENDPOINT, headers=HEADERS, params=params)
+    parameters = dict(
+        url=ENDPOINT,
+        headers=HEADERS,
+        params={'from_date': current_timestamp})
     try:
         homework_statuses = requests.get(**parameters)
-    except requests.exceptions.ConnectionError:
+    except requests.RequestException:
         raise ConnectionError(ERROR_NETWORK.format(**parameters))
     response_json = homework_statuses.json()
     status = homework_statuses.status_code
@@ -59,8 +60,8 @@ def get_api_answer(current_timestamp):
     for error in ['code', 'error']:
         if error in response_json:
             raise ResponseJsonError(RESPONSE_ERROR.format(
-                error=response_json[error],
-                state=status,
+                error_value=response_json[error],
+                error_key=error,
                 **parameters))
     return response_json
 
@@ -78,7 +79,7 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекается из конкретной домашней работы статус этой работы."""
-    status = homework['status']
+    status = homework.get('status')
     if status not in HOMEWORK_STATUSES:
         raise KeyError(ERROR_STATUS.format(value=status))
     message = STATUS.format(
@@ -124,8 +125,8 @@ def main():
         except Exception as error:
             message = MESSAGE.format(faults=error)
             try:
-                send_message(bot, message)
                 logging.error(message)
+                send_message(bot, message)
             except Exception as error:
                 logging.error(ERROR_NETWORK.format(fault=error))
         time.sleep(RETRY_TIME)

@@ -15,4 +15,4 @@
 7. Выполнить миграции: python3 manage.py migrate
 ## Требования
 * Python 3.7 +
-* Операционная система: Linux, Windows, macOS, BSD
+* Операционная система: Linux, Windows, macOS
